@@ -1,0 +1,14 @@
+cradle:
+  stack:
+    - path: "./src"
+      component: "lifegame:lib"
+
+    - path: "./app/Main.hs"
+      component: "lifegame:exe:lifegame-exe"
+
+    - path: "./app/Paths_lifegame.hs"
+      component: "lifegame:exe:lifegame-exe"
+
+    - path: "./test"
+      component: "lifegame:test:lifegame-test"
+      stackYaml: "./stack-hls.yaml"
