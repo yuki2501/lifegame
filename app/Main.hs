@@ -1,3 +1,7 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE DeriveFunctor #-}
+
 module Main where
 import Gloss.Render
 import Data.DIM2CA
@@ -8,13 +12,16 @@ import Control.Monad.ST
 import Graphics.Gloss
 import Graphics.Gloss.Interface.Pure.Game
 import GHC.Float.RealFracMethods
+import Parser
 import Debug.Trace
+import Control.Monad.Free
+import qualified Data.Text as T
 width = 400
 height = 200
 fieldWidth = 200
 fieldHeight = 200
 cellSize = 5 
-data GameState = GameState{ca :: Dim2CA,seed :: Int,isPosed :: Bool,mode :: Mode,clipBoard :: Board,command :: String,fps :: Int}
+data GameState = GameState{ca :: Dim2CA,seed :: Int,isPosed :: Bool,mode :: Mode,clipBoard :: Board,command :: String,fps :: Int} 
 data Mode = Normal | Insert deriving Eq
 data Board = Empty | Field [Bool]
 main :: IO ()
@@ -27,14 +34,17 @@ main =  do
   play (InWindow "The Game of Life" (width * cellSize,height * cellSize) (120,100)) white (fps state) state renderField eventHandler tickHandler
 
 renderField :: GameState -> Picture
-renderField state  = (translate (fromIntegral((fieldWidth - width)*cellSize)/2) (fromIntegral((height - fieldHeight)*cellSize)/2) $ (renderArray black (fromIntegral cellSize) $ field (ca  state))) <> (if (mode state == Insert) then scale 0.5 0.5 $ translate 300 (-400) (text "-- INSERT --") else mempty) <> (translate 300 200  (text (show(generation $ ca state)))) <> (translate 300 330 $ text "Generation")<> (scale 0.5 0.5 $ translate 180 (-410) (text $ reverse (command state)))
-
+renderField state  = (translate (fromIntegral((fieldWidth - width)*cellSize)/2) (fromIntegral((height - fieldHeight)*cellSize)/2) $ (renderArray black (fromIntegral cellSize) $ field (ca  state))) <> (if (mode state == Insert) then scale 0.5 0.5 $ translate 300 (-400) (text "-- INSERT --") else mempty) <> (translate 300 200  (text (show(generation $ ca state)))) <> (translate 300 330 $ text "Generation")<> (scale 0.5 0.5 $ translate 180 (-410) (text $ reverse (command state))) <> (translate 300 90 $ text ("Rule:" ++ ruleInt2Strng (activeCellNeighbor $ rule $ca state) ++ "/" ++ruleInt2Strng (birthCellNeighbor $ rule $ ca state) ))
+                                                                                                                                                                                                                                   where
+                                                                                                                                                                                                                                     ruleInt2Strng :: [Int] -> String
+                                                                                                                                                                                                                                     ruleInt2Strng [] = []
+                                                                                                                                                                                                                                     ruleInt2Strng (x:xs) = (show x) ++ ruleInt2Strng xs 
 
 eventHandler :: Event ->  GameState -> GameState 
 eventHandler (EventKey (MouseButton LeftButton) Down _ (mx, my)) state = if mode state == Insert then state{ca = cellChangedField  (ca state) $ clickedIndex2ArrayIndex mx my}
                                                                                                    else state
 eventHandler (EventKey (Char c) Down _ _ ) state 
-  | c == 'r' = if null $ command state then state{ca = (ca state){field = initfield (seed state + 1),generation = 1}} else  state{command = 'r':(command state)}
+  | c == 'r' = if null $ command state then state{ca = (ca state){field = initfield (seed state + 100),generation = 1}} else  state{command = 'r':(command state)}
   | c == 'p' = if null $ command state then state{isPosed = not(isPosed state)} else state{command = 'p':(command state)}
   | c == 'n' = if null $ command state then state{ca = fieldContentUpdate (ca state)} else state {command = 'n':(command state)}
   | c == 'i' = if mode state == Normal && (null $  command state) then state{mode = Insert} else if not (null $  command state) then state{command = 'i':(command state) }else state{mode = Normal}
@@ -44,6 +54,8 @@ eventHandler (EventKey (Char c) Down _ _ ) state
 eventHandler (EventKey (SpecialKey s) Down _ _) state
   | s == KeyBackspace = if not (null $ command state) then (state{command = tail (command state)}) else state
   | s == KeyDelete = if not (null $ command state) then (state{command = tail (command state)}) else state
+  | s == KeySpace = if not (null $ command state) then (state {command = ' ':command state}) else state
+  | s == KeyEnter = if not (null $ command state) then inputedcommandsInterpret state ( (result(T.pack $ reverse $ command state))) else state
 eventHandler _ ca = ca
 
 tickHandler :: Float -> GameState -> GameState
@@ -60,7 +72,14 @@ clickedIndex2ArrayIndex mx my = tuple2Index (safeAccess  (((abs(mx + int2Float((
   where
     safeAccess :: Float -> Int -> Int
     safeAccess i j= if abs (roundFloatInt i) > j then 0 else (roundFloatInt i)
-
+changerule :: GameState -> Int -> Int -> GameState
+changerule state i i' = let activeCellNeighbor' = int2list i
+                            birthCellNeighbor' = int2list i'
+                         in state{ca = (ca state){rule = (rule$ca state){activeCellNeighbor = activeCellNeighbor',birthCellNeighbor = birthCellNeighbor'}},command = ""}
+                         where
+                           int2list 0 = []
+                           int2list i = let (d,m) = divMod i 10
+                                       in reverse(m:int2list d)
 
 block = Rp.fromListUnboxed (Rp.Z Rp.:.(2::Int) Rp.:.(2::Int)) (map char2Bool "####")
 beehive = Rp.fromListUnboxed (Rp.Z Rp.:.(3::Int) Rp.:.(4::Int)) (map char2Bool " ## #  # ## ")
@@ -69,4 +88,27 @@ boat = Rp.fromListUnboxed (Rp.Z Rp.:.(3::Int) Rp.:.(3::Int)) (map char2Bool "## 
 blinker =Rp.fromListUnboxed (Rp.Z Rp.:.(1::Int) Rp.:.(3::Int)) (map char2Bool "###")
 toad = Rp.fromListUnboxed (Rp.Z Rp.:.(2::Int) Rp.:.(4::Int))" ###### "
 beacon = Rp.fromListUnboxed (Rp.Z Rp.:.(4::Int) Rp.:.(4::Int))( map char2Bool "##  ##    ##  ##")
+templeteList = ["block","beehive","loaf","boat","blinker","toad","beacon"]
+interpretCommand ::    Command  ->  InputedCommands 
+interpretCommand  f = case f of
+                       (GameCommand command r) -> interpret command  (interpretCommand r )
+                       (CommandParameter int r) ->Parameter int (interpretCommand  r)
+                       (CommandNil) -> Nil 
+                       
+interpret :: T.Text -> InputedCommands -> InputedCommands
+interpret t inputedcommands
+  | t == "changefps" = Changefps inputedcommands
+  | t == "changerule" = ChangeRule inputedcommands
+  | t `elem` templeteList = Set t inputedcommands
+  | otherwise = inputedcommands
+                                                        
+data InputedCommands  = Changefps   (InputedCommands )|ChangeRule  (InputedCommands ) |Set T.Text (InputedCommands )|Parameter Int (InputedCommands ) |Nil deriving (Show,Eq,Read)
 
+result ::   T.Text -> InputedCommands 
+result  text = interpretCommand (  (parseCommand text))
+
+inputedcommandsInterpret ::  GameState -> InputedCommands  -> GameState
+inputedcommandsInterpret state f = case f of
+                                     (Changefps (Parameter i (Nil))) -> state{fps = i,command = ""}
+                                     (ChangeRule (Parameter i (Parameter i' (Nil)))) -> changerule state i i'
+                                     _ -> state{command = reverse "error"}
