@@ -12,16 +12,23 @@ packages:
   original:
     hackage: repa-3.4.1.4
 - completed:
+    hackage: repa-algorithms-3.4.1.3@sha256:d549d0d0d9534be7e89b1e995d1eaaf8cb97a450c033b4424d8ae192ac0e6b53,1955
+    pantry-tree:
+      size: 938
+      sha256: 48f85b02ef4ff33c690f1d78b2ce86685f8112e70ef7500e01adae2a1097c1aa
+  original:
+    hackage: repa-algorithms-3.4.1.3
+- completed:
     name: hacca
     version: 0.1.0.0
     git: https://github.com/yuki2501/hacca
     pantry-tree:
       size: 835
-      sha256: 2ce53de2822ab596dc516da133119c8b144c156d26529206e6b063d682563ac9
-    commit: 6e2b8593677f928ff2f988f88f49dabd814721ad
+      sha256: 31da4f7ba6778355af23bdc939b91f5ccca66bff117aca2805b4c15792e9a516
+    commit: 297447743889a9c82215b15ed398c867e5d9fcc9
   original:
     git: https://github.com/yuki2501/hacca
-    commit: 6e2b8593677f928ff2f988f88f49dabd814721ad
+    commit: 297447743889a9c82215b15ed398c867e5d9fcc9
 snapshots:
 - completed:
     size: 534126

@@ -38,8 +38,9 @@ packages:
 #
 extra-deps:
 - repa-3.4.1.4
+- repa-algorithms-3.4.1.3
 - git: https://github.com/yuki2501/hacca
-  commit: 6e2b8593677f928ff2f988f88f49dabd814721ad
+  commit: 297447743889a9c82215b15ed398c867e5d9fcc9
 # - acme-missiles-0.3
 # - git: https://github.com/commercialhaskell/stack.git
 #   commit: e7b331f14bcffb8367cd58fbfc8b40ec7642100a

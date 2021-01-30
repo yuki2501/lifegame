@@ -22,7 +22,10 @@ description:         Please see the README on GitHub at <https://github.com/gith
 dependencies:
 - base >= 4.7 && < 5
 - repa
+- repa-algorithms
 - hacca
+- gloss
+- random
 library:
   source-dirs: src
 
@@ -32,8 +35,9 @@ executables:
     source-dirs:         app
     ghc-options:
     - -threaded
+    - -O2
     - -rtsopts
-    - -with-rtsopts=-N
+    - -with-rtsopts=-N6
     dependencies:
     - lifegame
 
