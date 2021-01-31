@@ -1,4 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE DeriveFunctor #-}
 
 module Main where
 import Gloss.Render
@@ -12,6 +14,7 @@ import Graphics.Gloss.Interface.Pure.Game
 import GHC.Float.RealFracMethods
 import Parser
 import Debug.Trace
+import Control.Monad.Skeleton
 import qualified Data.Text as T
 width = 400
 height = 200
@@ -27,10 +30,14 @@ main =  do
   let rule = Rule Moore [3] [2,3]
   let lifegame = Dim2CA field rule True 1  
   let state = GameState lifegame seed False Normal (Rp.computeUnboxedS $ Rp.fromFunction (Rp.Z Rp.:.1 Rp.:.1) (const 1)) [] 60
-  play (InWindow "The Game of Life" (width * cellSize,height * cellSize) (120,100)) white (fps state) state renderField eventHandler tickHandler
+  play (InWindow "The Game of Life" (width * cellSize ,height * cellSize) (120,100)) white (fps state) state renderField eventHandler tickHandler
 
 renderField :: GameState -> Picture
-renderField state  = (translate (fromIntegral((fieldWidth - width)*cellSize)/2) (fromIntegral((height - fieldHeight)*cellSize)/2) $ (renderArray black (fromIntegral cellSize) $ field (ca  state))) <> (if (mode state == Insert) then scale 0.5 0.5 $ translate 300 (-400) (text "-- INSERT --") else mempty) <> (translate 300 200  (text (show(generation $ ca state)))) <> (translate 300 330 $ text "Generation")<> (scale 0.5 0.5 $ translate 180 (-410) (text $ reverse (command state))) <> (translate 300 90 $ text ("Rule:" ++ ruleInt2Strng (activeCellNeighbor $ rule $ca state) ++ "/" ++ruleInt2Strng (birthCellNeighbor $ rule $ ca state) ))
+renderField state  = (translate (fromIntegral((fieldWidth - width)*cellSize)/2) (fromIntegral((height - fieldHeight)*cellSize)/2) $ renderArray black (fromIntegral cellSize) $ field (ca  state)) 
+  <> (if (mode state == Insert) then scale 0.5 0.5 $ translate 300 (-400) (text "-- INSERT --") else mempty) 
+  <> (translate 300 200  (text (show(generation $ ca state)))) 
+  <> (translate 300 330 $ text "Generation")
+  <> (scale 0.5 0.5 $ translate 180 (-410) (text $ reverse (command state))) <> (translate 300 90 $ text ("Rule:" ++ ruleInt2Strng (activeCellNeighbor $ rule $ca state) ++ "/" ++ruleInt2Strng (birthCellNeighbor $ rule $ ca state) ))
                                                                                                                                                                                                                                    where
                                                                                                                                                                                                                                      ruleInt2Strng :: [Int] -> String
                                                                                                                                                                                                                                      ruleInt2Strng [] = []
@@ -52,7 +59,7 @@ eventHandler (EventKey (SpecialKey s) Down _ _) state
   | s == KeyBackspace = if not (null $ command state) then (state{command = tail (command state)}) else state
   | s == KeyDelete = if not (null $ command state) then (state{command = tail (command state)}) else state
   | s == KeySpace = if not (null $ command state) then (state {command = ' ':command state}) else state
-  | s == KeyEnter = if command state == reverse "error" then state{command = []} else if not (null $ command state) then inputedcommandsInterpret state ( (result(T.pack $ reverse $ command state))) else  state
+  | s == KeyEnter = if command state == reverse "error" then state{command = []} else if not (null $ command state) then runM state (bone (result(T.pack $ reverse $ command state))) else  state
 eventHandler _ ca = ca
 
 tickHandler :: Float -> GameState -> GameState
@@ -85,42 +92,63 @@ boat = Rp.fromListUnboxed (Rp.Z Rp.:.(3::Int) Rp.:.(3::Int)) (map char2Int "## #
 blinker =Rp.fromListUnboxed (Rp.Z Rp.:.(1::Int) Rp.:.(3::Int)) (map char2Int "###")
 toad = Rp.fromListUnboxed (Rp.Z Rp.:.(2::Int) Rp.:.(4::Int))(map char2Int " ###### ")
 beacon = Rp.fromListUnboxed (Rp.Z Rp.:.(4::Int) Rp.:.(4::Int))( map char2Int "##  ##    ##  ##")
-templeteList = ["block","beehive","loaf","boat","blinker","toad","beacon"]
-interpretCommand ::    Command  ->  InputedCommands 
+pulsar = Rp.fromListUnboxed (Rp.Z Rp.:.(13::Int) Rp.:.(13::Int)) (map char2Int "  ###   ###               #    # #    ##    # #    ##    # #    #  ###   ###                 ###   ###  #    # #    ##    # #    ##    # #    #               ###   ###  ")
+templeteList = ["block","beehive","loaf","boat","blinker","toad","beacon","pulsar"]
+interpretCommand ::    Command  ->  InputedCommands' GameState 
 interpretCommand  f = case f of
-                       (GameCommand command r) -> interpret command  (interpretCommand r )
-                       (CommandParameter int r) ->Parameter int (interpretCommand  r)
-                       (CommandNil) -> Nil 
+                       (GameCommand command r) -> interpret command   r 
+                       (CommandNil) -> Nil'
+                       _ -> Nil'
                        
-interpret :: T.Text -> InputedCommands -> InputedCommands
+interpret :: T.Text -> Command -> InputedCommands' GameState
 interpret t inputedcommands
-  | t == "changefps" = Changefps inputedcommands
-  | t == "changerule" = ChangeRule inputedcommands
-  | t `elem` templeteList = Set t inputedcommands
-  | otherwise = inputedcommands
-                                                        
+  | t == "changerule"  =  case inputedcommands of
+                            (CommandParameter i (CommandParameter i' (CommandNil))) -> ChangeRule' i i'
+                            _ -> Error'
+  | t `elem` templeteList = case inputedcommands of
+                              CommandNil -> Set' t
+                              _ -> Error'
+  | otherwise = Error'
+                                                       
 data InputedCommands  = Changefps   (InputedCommands )|ChangeRule  (InputedCommands ) |Set T.Text (InputedCommands )|Parameter Int (InputedCommands ) |Nil deriving (Show,Eq,Read)
 
-result ::   T.Text -> InputedCommands 
+data InputedCommands' r where
+  ChangeRule'::   Int -> Int -> InputedCommands' GameState
+  Set'       ::  T.Text -> InputedCommands' GameState
+  Nil'       :: InputedCommands' GameState
+  Error' :: InputedCommands' GameState
+
+type M = Skeleton InputedCommands'
+
+
+runM :: GameState -> M a -> a
+runM state m = case debone m of
+                 ChangeRule' i i' :>>= k -> runM (changerule state i i') $ k $ (changerule state i i')
+                 Set' t :>>= k -> runM (interpretSetCommand state t) $ k $ (interpretSetCommand state t)
+                 Nil' :>>= k -> runM state $ k (state{command = ""})
+                 Error' :>>= k -> runM (state{command = reverse "error"}) $ k $ (state{command = reverse "error"})
+                 Return a -> a
+                 
+
+result ::   T.Text -> InputedCommands' GameState 
 result  text = interpretCommand (  (parseCommand text))
 
-inputedcommandsInterpret ::  GameState -> InputedCommands  -> GameState
-inputedcommandsInterpret state f = case f of
-                                     (Changefps (Parameter i (Nil))) -> state{fps = i,command = ""}
-                                     (ChangeRule (Parameter i (Parameter i' (Nil)))) -> changerule state i i'
-                                     (Set "block" (Nil)) -> state{clipBoard = block,command = ""}
-                                     (Set "beehive" (Nil)) -> state{clipBoard = beehive,command = ""}
-                                     (Set "loaf" (Nil)) -> state{clipBoard = loaf,command = ""}
-                                     (Set "boat" (Nil)) -> state{clipBoard = boat,command = ""}
-                                     (Set "blinker" (Nil)) -> state{clipBoard = blinker, command = ""}
-                                     (Set "toad" (Nil)) -> state{clipBoard = toad, command = ""}
-                                     (Set "beacon" (Nil)) -> state{clipBoard = beacon,command = ""}
-                                     _ -> state{command = reverse "error"}
 
+interpretSetCommand :: GameState -> T.Text -> GameState
+interpretSetCommand state t
+  | t == "block" = state{clipBoard = block, command = ""}
+  | t == "beehive" = state{clipBoard = beehive,command = ""}
+  | t == "loaf" = state{clipBoard = loaf,command = ""}
+  | t == "boat" = state{clipBoard = boat, command = ""}
+  | t == "blinker" = state{clipBoard = blinker,command = ""}
+  | t == "toad" = state{clipBoard = toad, command = ""}
+  | t == "beacon"  = state{clipBoard = beacon,command = ""}
+  | t == "pulsar" = state{clipBoard = pulsar,command = ""}
+  | otherwise     = state{command = reverse "error"}
 
 pasteClipBoard :: GameState -> Rp.DIM2 -> GameState
 pasteClipBoard state (Rp.Z Rp.:.x Rp.:.y) = let newField = runST $ Rp.computeUnboxedP $ Rp.traverse (field $ ca state) id (cellupdate (ca state))
                                                   where
                                                     cellupdate ::Dim2CA -> (Rp.DIM2 -> Int) -> Rp.DIM2 -> Int
-                                                    cellupdate ca _ (Rp.Z Rp.:.i Rp.:.j) = if (x - 1 <= i && i <= x + ((\(Rp.Z Rp.:.i Rp.:._) -> i) $ Rp.extent (clipBoard state)) -2 && y - 1 <= j && j <=  ((\(Rp.Z Rp.:._ Rp.:.j) -> j) $ Rp.extent (clipBoard state)) + y - 2) then trace((show (i - (y - 1)))++" "++(show (j - (x - 1)))) $(clipBoard state) Rp.! (Rp.Z Rp.:.(i - (x - 1)) Rp.:.(j - (y - 1))) else ((field (ca)) Rp.! (Rp.Z Rp.:.i Rp.:.j))
+                                                    cellupdate ca _ (Rp.Z Rp.:.i Rp.:.j) = if (x - 1 <= i && i <= x + ((\(Rp.Z Rp.:.i Rp.:._) -> i) $ Rp.extent (clipBoard state)) -2 && y - 1 <= j && j <=  ((\(Rp.Z Rp.:._ Rp.:.j) -> j) $ Rp.extent (clipBoard state)) + y - 2) then (clipBoard state) Rp.! (Rp.Z Rp.:.(i - (x - 1)) Rp.:.(j - (y - 1))) else ((field (ca)) Rp.! (Rp.Z Rp.:.i Rp.:.j))
                                              in state{ ca = (ca state){field = newField} }
