@@ -18,16 +18,15 @@ height = 200
 fieldWidth = 200
 fieldHeight = 200
 cellSize = 5 
-data GameState = GameState{ca :: Dim2CA,seed :: Int,isPosed :: Bool,mode :: Mode,clipBoard :: Board,command :: String,fps :: Int} 
+data GameState = GameState{ca :: Dim2CA,seed :: Int,isPosed :: Bool,mode :: Mode,clipBoard :: Field,command :: String,fps :: Int} 
 data Mode = Normal | Insert deriving Eq
-data Board = Empty | Field 
 main :: IO ()
 main =  do
   seed <- randomIO :: IO Int
   let field = initfield seed
   let rule = Rule Moore [3] [2,3]
-  let lifegame = Dim2CA field rule True 1 
-  let state = GameState lifegame seed False Normal Empty [] 60
+  let lifegame = Dim2CA field rule True 1  
+  let state = GameState lifegame seed False Normal (Rp.computeUnboxedS $ Rp.fromFunction (Rp.Z Rp.:.1 Rp.:.1) (const 1)) [] 60
   play (InWindow "The Game of Life" (width * cellSize,height * cellSize) (120,100)) white (fps state) state renderField eventHandler tickHandler
 
 renderField :: GameState -> Picture
@@ -35,18 +34,19 @@ renderField state  = (translate (fromIntegral((fieldWidth - width)*cellSize)/2) 
                                                                                                                                                                                                                                    where
                                                                                                                                                                                                                                      ruleInt2Strng :: [Int] -> String
                                                                                                                                                                                                                                      ruleInt2Strng [] = []
-                                                                                                                                                                                                                                     ruleInt2Strng (x:xs) = (show x) ++ ruleInt2Strng xs 
+                                                                                                                                                                                                                                     ruleInt2Strng (x:xs) = show x ++ ruleInt2Strng xs 
 
 eventHandler :: Event ->  GameState -> GameState 
 eventHandler (EventKey (MouseButton LeftButton) Down _ (mx, my)) state = if mode state == Insert then state{ca = cellChangedField  (ca state) $ clickedIndex2ArrayIndex mx my}
-                                                                                                   else state
+                                                                                                   else state{ca = fieldContentUpdate (ca state)}
+eventHandler (EventKey (MouseButton RightButton) Down _ (mx,my)) state = if mode state == Insert then pasteClipBoard state (clickedIndex2ArrayIndex mx my) else state{ca = fieldContentUpdate (ca state)}
 eventHandler (EventKey (Char c) Down _ _ ) state 
   | c == 'r' = if null $ command state then state{ca = (ca state){field = initfield (seed state + 100),generation = 1}} else  state{command = 'r':(command state)}
   | c == 'p' = if null $ command state then state{isPosed = not(isPosed state)} else state{command = 'p':(command state)}
   | c == 'n' = if null $ command state then state{ca = fieldContentUpdate (ca state)} else state {command = 'n':(command state)}
   | c == 'i' = if mode state == Normal && (null $  command state) then state{mode = Insert} else if not (null $  command state) then state{command = 'i':(command state) }else state{mode = Normal}
-  | c == 'd' = if mode state == Insert && (null $  command state) then state{ca = ((ca state){generation = 1,field = runST $ Rp.computeUnboxedP $ Rp.fromFunction (Rp.Z Rp.:.fieldHeight Rp.:.fieldWidth)  (const 0)})} else if not (null $  command state) then state{command = 'd':(command state) } else state
-  | c == ':' = state{command = ':':(command state)}
+  | c == 'd' = if mode state == Insert && (null $  command state) then state{ca = ((ca state){generation = 1,field = runST $ Rp.computeUnboxedP $ Rp.fromFunction (Rp.Z Rp.:.fieldHeight Rp.:.fieldWidth)  (const 0)})} else if not (null $  command state) then state{command = 'd':command state } else state
+  | c == ':' = if command state == reverse "error" then state{command = ':':[]} else state{command = ':':(command state)}
   | otherwise = if not (null $ command state) then (state{command = c:(command state)}) else state
 eventHandler (EventKey (SpecialKey s) Down _ _) state
   | s == KeyBackspace = if not (null $ command state) then (state{command = tail (command state)}) else state
@@ -61,8 +61,8 @@ tickHandler _ state = if not(isPosed state) then state{ca = fieldContentUpdate (
 initfield :: Int -> Field
 initfield i =  (randomishIntArray (Rp.Z Rp.:.fieldHeight Rp.:.fieldWidth) 0 1 i)
 
-char2Bool :: Char -> Bool
-char2Bool c =  c == '#'
+char2Int :: Char -> Int
+char2Int c = if c == '#' then 1 else 0
 
 clickedIndex2ArrayIndex :: Float -> Float -> Rp.DIM2
 clickedIndex2ArrayIndex mx my = tuple2Index (safeAccess  (((abs(mx + int2Float((width*cellSize)`div`2))/(int2Float cellSize)))) fieldWidth,safeAccess (((abs(my - int2Float((height*cellSize)`div`2))/(int2Float cellSize)))) fieldHeight)
@@ -78,13 +78,13 @@ changerule state i i' = let activeCellNeighbor' = int2list i
                            int2list i = let (d,m) = divMod i 10
                                        in reverse(m:int2list d)
 
-block = Rp.fromListUnboxed (Rp.Z Rp.:.(2::Int) Rp.:.(2::Int)) (map char2Bool "####")
-beehive = Rp.fromListUnboxed (Rp.Z Rp.:.(3::Int) Rp.:.(4::Int)) (map char2Bool " ## #  # ## ")
-loaf = Rp.fromListUnboxed (Rp.Z Rp.:.(4::Int) Rp.:.(4::Int)) (map char2Bool " ## #  # # #  # ")
-boat = Rp.fromListUnboxed (Rp.Z Rp.:.(3::Int) Rp.:.(3::Int)) (map char2Bool "## # # # ")
-blinker =Rp.fromListUnboxed (Rp.Z Rp.:.(1::Int) Rp.:.(3::Int)) (map char2Bool "###")
-toad = Rp.fromListUnboxed (Rp.Z Rp.:.(2::Int) Rp.:.(4::Int))" ###### "
-beacon = Rp.fromListUnboxed (Rp.Z Rp.:.(4::Int) Rp.:.(4::Int))( map char2Bool "##  ##    ##  ##")
+block = Rp.fromListUnboxed (Rp.Z Rp.:.(2::Int) Rp.:.(2::Int)) (map char2Int "####")
+beehive = Rp.fromListUnboxed (Rp.Z Rp.:.(3::Int) Rp.:.(4::Int)) (map char2Int " ## #  # ## ")
+loaf = Rp.fromListUnboxed (Rp.Z Rp.:.(4::Int) Rp.:.(4::Int)) (map char2Int " ## #  # # #  # ")
+boat = Rp.fromListUnboxed (Rp.Z Rp.:.(3::Int) Rp.:.(3::Int)) (map char2Int "## # # # ")
+blinker =Rp.fromListUnboxed (Rp.Z Rp.:.(1::Int) Rp.:.(3::Int)) (map char2Int "###")
+toad = Rp.fromListUnboxed (Rp.Z Rp.:.(2::Int) Rp.:.(4::Int))(map char2Int " ###### ")
+beacon = Rp.fromListUnboxed (Rp.Z Rp.:.(4::Int) Rp.:.(4::Int))( map char2Int "##  ##    ##  ##")
 templeteList = ["block","beehive","loaf","boat","blinker","toad","beacon"]
 interpretCommand ::    Command  ->  InputedCommands 
 interpretCommand  f = case f of
@@ -108,4 +108,19 @@ inputedcommandsInterpret ::  GameState -> InputedCommands  -> GameState
 inputedcommandsInterpret state f = case f of
                                      (Changefps (Parameter i (Nil))) -> state{fps = i,command = ""}
                                      (ChangeRule (Parameter i (Parameter i' (Nil)))) -> changerule state i i'
+                                     (Set "block" (Nil)) -> state{clipBoard = block,command = ""}
+                                     (Set "beehive" (Nil)) -> state{clipBoard = beehive,command = ""}
+                                     (Set "loaf" (Nil)) -> state{clipBoard = loaf,command = ""}
+                                     (Set "boat" (Nil)) -> state{clipBoard = boat,command = ""}
+                                     (Set "blinker" (Nil)) -> state{clipBoard = blinker, command = ""}
+                                     (Set "toad" (Nil)) -> state{clipBoard = toad, command = ""}
+                                     (Set "beacon" (Nil)) -> state{clipBoard = beacon,command = ""}
                                      _ -> state{command = reverse "error"}
+
+
+pasteClipBoard :: GameState -> Rp.DIM2 -> GameState
+pasteClipBoard state (Rp.Z Rp.:.x Rp.:.y) = let newField = runST $ Rp.computeUnboxedP $ Rp.traverse (field $ ca state) id (cellupdate (ca state))
+                                                  where
+                                                    cellupdate ::Dim2CA -> (Rp.DIM2 -> Int) -> Rp.DIM2 -> Int
+                                                    cellupdate ca _ (Rp.Z Rp.:.i Rp.:.j) = if (x - 1 <= i && i <= x + ((\(Rp.Z Rp.:.i Rp.:._) -> i) $ Rp.extent (clipBoard state)) -2 && y - 1 <= j && j <=  ((\(Rp.Z Rp.:._ Rp.:.j) -> j) $ Rp.extent (clipBoard state)) + y - 2) then trace((show (i - (y - 1)))++" "++(show (j - (x - 1)))) $(clipBoard state) Rp.! (Rp.Z Rp.:.(i - (x - 1)) Rp.:.(j - (y - 1))) else ((field (ca)) Rp.! (Rp.Z Rp.:.i Rp.:.j))
+                                             in state{ ca = (ca state){field = newField} }
