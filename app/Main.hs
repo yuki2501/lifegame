@@ -1,6 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE DeriveFunctor #-}
 
 module Main where
 import Gloss.Render
@@ -14,7 +12,6 @@ import Graphics.Gloss.Interface.Pure.Game
 import GHC.Float.RealFracMethods
 import Parser
 import Debug.Trace
-import Control.Monad.Free
 import qualified Data.Text as T
 width = 400
 height = 200
@@ -23,7 +20,7 @@ fieldHeight = 200
 cellSize = 5 
 data GameState = GameState{ca :: Dim2CA,seed :: Int,isPosed :: Bool,mode :: Mode,clipBoard :: Board,command :: String,fps :: Int} 
 data Mode = Normal | Insert deriving Eq
-data Board = Empty | Field [Bool]
+data Board = Empty | Field 
 main :: IO ()
 main =  do
   seed <- randomIO :: IO Int
@@ -48,21 +45,21 @@ eventHandler (EventKey (Char c) Down _ _ ) state
   | c == 'p' = if null $ command state then state{isPosed = not(isPosed state)} else state{command = 'p':(command state)}
   | c == 'n' = if null $ command state then state{ca = fieldContentUpdate (ca state)} else state {command = 'n':(command state)}
   | c == 'i' = if mode state == Normal && (null $  command state) then state{mode = Insert} else if not (null $  command state) then state{command = 'i':(command state) }else state{mode = Normal}
-  | c == 'd' = if mode state == Insert && (null $  command state) then state{ca = ((ca state){generation = 1,field = runST $ Rp.computeUnboxedP $ Rp.fromFunction (Rp.Z Rp.:.fieldHeight Rp.:.fieldWidth)  (const False)})} else if not (null $  command state) then state{command = 'd':(command state) } else state
+  | c == 'd' = if mode state == Insert && (null $  command state) then state{ca = ((ca state){generation = 1,field = runST $ Rp.computeUnboxedP $ Rp.fromFunction (Rp.Z Rp.:.fieldHeight Rp.:.fieldWidth)  (const 0)})} else if not (null $  command state) then state{command = 'd':(command state) } else state
   | c == ':' = state{command = ':':(command state)}
   | otherwise = if not (null $ command state) then (state{command = c:(command state)}) else state
 eventHandler (EventKey (SpecialKey s) Down _ _) state
   | s == KeyBackspace = if not (null $ command state) then (state{command = tail (command state)}) else state
   | s == KeyDelete = if not (null $ command state) then (state{command = tail (command state)}) else state
   | s == KeySpace = if not (null $ command state) then (state {command = ' ':command state}) else state
-  | s == KeyEnter = if not (null $ command state) then inputedcommandsInterpret state ( (result(T.pack $ reverse $ command state))) else state
+  | s == KeyEnter = if command state == reverse "error" then state{command = []} else if not (null $ command state) then inputedcommandsInterpret state ( (result(T.pack $ reverse $ command state))) else  state
 eventHandler _ ca = ca
 
 tickHandler :: Float -> GameState -> GameState
 tickHandler _ state = if not(isPosed state) then state{ca = fieldContentUpdate (ca state )} else state
 
 initfield :: Int -> Field
-initfield i = runST $ Rp.computeUnboxedP $ Rp.map ( == 0) (randomishIntArray (Rp.Z Rp.:.fieldHeight Rp.:.fieldWidth) 0 1 i)
+initfield i =  (randomishIntArray (Rp.Z Rp.:.fieldHeight Rp.:.fieldWidth) 0 1 i)
 
 char2Bool :: Char -> Bool
 char2Bool c =  c == '#'
