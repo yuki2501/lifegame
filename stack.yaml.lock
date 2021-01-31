@@ -23,12 +23,12 @@ packages:
     version: 0.1.0.0
     git: https://github.com/yuki2501/hacca
     pantry-tree:
-      size: 835
-      sha256: 31da4f7ba6778355af23bdc939b91f5ccca66bff117aca2805b4c15792e9a516
-    commit: 297447743889a9c82215b15ed398c867e5d9fcc9
+      size: 836
+      sha256: 3bab15f3170541c72ab427c0b0c14533eccf9efcb97f0faf298a7cf2e1b84816
+    commit: b713ffc9f697a3345b4cb4994d8dd2956622ac3f
   original:
     git: https://github.com/yuki2501/hacca
-    commit: 297447743889a9c82215b15ed398c867e5d9fcc9
+    commit: b713ffc9f697a3345b4cb4994d8dd2956622ac3f
 snapshots:
 - completed:
     size: 534126

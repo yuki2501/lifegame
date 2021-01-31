@@ -1,19 +1,16 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE RankNTypes #-}
 module Parser where
 import Data.Text
 import Control.Applicative
 import Data.Attoparsec.Text
 
 data Command 
-  = GameCommand Text (Command )
-  | CommandParameter Int (Command ) 
+  = GameCommand Text (Command)
+  | CommandParameter Int (Command) 
   | CommandNil
   deriving (Show,Eq,Read)
 
-schar :: Char -> Parser Char
-schar c =  char c <* skipSpace
 
 parseCommand ::     Text -> Command 
 parseCommand s = let result = showParseResult $ parse(commandParser <* endOfInput) s `feed` pack "" in case result of 

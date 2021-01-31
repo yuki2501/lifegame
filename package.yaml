@@ -26,6 +26,10 @@ dependencies:
 - hacca
 - gloss
 - random
+- text
+- attoparsec
+- free
+- monad-skeleton
 library:
   source-dirs: src
 
