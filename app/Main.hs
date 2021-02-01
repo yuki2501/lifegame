@@ -1,7 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE DeriveFunctor #-}
-
 module Main where
 import Gloss.Render
 import Data.DIM2CA
@@ -16,11 +14,11 @@ import Parser
 import Debug.Trace
 import Control.Monad.Skeleton
 import qualified Data.Text as T
-width = 400
-height = 200
-fieldWidth = 200
-fieldHeight = 200
-cellSize = 5 
+width = fieldWidth * 2
+height = fieldHeight
+fieldWidth = 300
+fieldHeight = 300
+cellSize = 3 
 data GameState = GameState{ca :: Dim2CA,seed :: Int,isPosed :: Bool,mode :: Mode,clipBoard :: Field,command :: String,fps :: Int} 
 data Mode = Normal | Insert deriving Eq
 main :: IO ()
@@ -34,10 +32,11 @@ main =  do
 
 renderField :: GameState -> Picture
 renderField state  = (translate (fromIntegral((fieldWidth - width)*cellSize)/2) (fromIntegral((height - fieldHeight)*cellSize)/2) $ renderArray black (fromIntegral cellSize) $ field (ca  state)) 
-  <> (if (mode state == Insert) then scale 0.5 0.5 $ translate 300 (-400) (text "-- INSERT --") else mempty) 
+  <> (if (mode state == Insert) then scale 0.5 0.5 $ translate 300 (-700) (text "-- INSERT --") else mempty) 
   <> (translate 300 200  (text (show(generation $ ca state)))) 
   <> (translate 300 330 $ text "Generation")
   <> (scale 0.5 0.5 $ translate 180 (-410) (text $ reverse (command state))) <> (translate 300 90 $ text ("Rule:" ++ ruleInt2Strng (activeCellNeighbor $ rule $ca state) ++ "/" ++ruleInt2Strng (birthCellNeighbor $ rule $ ca state) ))
+  <> (translate 300  (-100) $scale 0.5 0.5 $ text ("Active Cell:" ++ show(runST $ Rp.sumAllP (field $ ca state))))
                                                                                                                                                                                                                                    where
                                                                                                                                                                                                                                      ruleInt2Strng :: [Int] -> String
                                                                                                                                                                                                                                      ruleInt2Strng [] = []
@@ -93,14 +92,18 @@ blinker =Rp.fromListUnboxed (Rp.Z Rp.:.(1::Int) Rp.:.(3::Int)) (map char2Int "##
 toad = Rp.fromListUnboxed (Rp.Z Rp.:.(2::Int) Rp.:.(4::Int))(map char2Int " ###### ")
 beacon = Rp.fromListUnboxed (Rp.Z Rp.:.(4::Int) Rp.:.(4::Int))( map char2Int "##  ##    ##  ##")
 pulsar = Rp.fromListUnboxed (Rp.Z Rp.:.(13::Int) Rp.:.(13::Int)) (map char2Int "  ###   ###               #    # #    ##    # #    ##    # #    #  ###   ###                 ###   ###  #    # #    ##    # #    ##    # #    #               ###   ###  ")
-templeteList = ["block","beehive","loaf","boat","blinker","toad","beacon","pulsar"]
+penta = Rp.fromListUnboxed (Rp.Z Rp.:.(8::Int) Rp.:.(3::Int)) (map char2Int "#### ############## ####")
+glider = Rp.fromListUnboxed (Rp.Z Rp.:.(3::Int) Rp.:.(3::Int)) (map char2Int " #   ####")
+lightstarship = Rp.fromListUnboxed (Rp.Z Rp.:.(4::Int)Rp.:.(5::Int)) (map char2Int " #  ##    #   ##### ")
+middlestarship = Rp.fromListUnboxed (Rp.Z Rp.:.(5::Int) Rp.:.(6::Int)) (map char2Int "   #   #   ##     #    ###### ")
+heavystarship = Rp.fromListUnboxed (Rp.Z Rp.:.(5::Int) Rp.:.(7::Int)) (map char2Int "   ##   #    ##      #     ####### ")
+
+templeteList = ["block","beehive","loaf","boat","blinker","toad","beacon","pulsar","penta","glider","lightstarship","middlestarship","heavystarship"]
 interpretCommand ::    Command  ->  InputedCommands' GameState 
 interpretCommand  f = case f of
                        (GameCommand command r) -> interpret command   r 
                        (CommandNil) -> Nil'
-                       _ -> Nil'
-                       
-interpret :: T.Text -> Command -> InputedCommands' GameState
+                       _ -> Nil'                      
 interpret t inputedcommands
   | t == "changerule"  =  case inputedcommands of
                             (CommandParameter i (CommandParameter i' (CommandNil))) -> ChangeRule' i i'
@@ -109,10 +112,7 @@ interpret t inputedcommands
                               CommandNil -> Set' t
                               _ -> Error'
   | otherwise = Error'
-                                                       
-data InputedCommands  = Changefps   (InputedCommands )|ChangeRule  (InputedCommands ) |Set T.Text (InputedCommands )|Parameter Int (InputedCommands ) |Nil deriving (Show,Eq,Read)
-
-data InputedCommands' r where
+data InputedCommands' r  where
   ChangeRule'::   Int -> Int -> InputedCommands' GameState
   Set'       ::  T.Text -> InputedCommands' GameState
   Nil'       :: InputedCommands' GameState
@@ -123,7 +123,7 @@ type M = Skeleton InputedCommands'
 
 runM :: GameState -> M a -> a
 runM state m = case debone m of
-                 ChangeRule' i i' :>>= k -> runM (changerule state i i') $ k $ (changerule state i i')
+                 ChangeRule' i i' :>>= k -> runM ( changerule state  i  i')$ k $ (changerule state  i i')
                  Set' t :>>= k -> runM (interpretSetCommand state t) $ k $ (interpretSetCommand state t)
                  Nil' :>>= k -> runM state $ k (state{command = ""})
                  Error' :>>= k -> runM (state{command = reverse "error"}) $ k $ (state{command = reverse "error"})
@@ -144,6 +144,11 @@ interpretSetCommand state t
   | t == "toad" = state{clipBoard = toad, command = ""}
   | t == "beacon"  = state{clipBoard = beacon,command = ""}
   | t == "pulsar" = state{clipBoard = pulsar,command = ""}
+  | t == "penta" = state{clipBoard = penta,command = ""}
+  | t == "glider" = state{clipBoard = glider , command = ""}
+  | t == "lightstarship" = state{clipBoard = lightstarship,command = ""}
+  | t == "middlestarship" = state{clipBoard = middlestarship,command = ""}
+  | t == "heavystarship" = state{clipBoard = heavystarship,command = ""}
   | otherwise     = state{command = reverse "error"}
 
 pasteClipBoard :: GameState -> Rp.DIM2 -> GameState
