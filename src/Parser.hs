@@ -1,22 +1,23 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE RankNTypes #-}
 module Parser where
 import Data.Text
 import Control.Applicative
 import Data.Attoparsec.Text
 
-data Command 
-  = GameCommand Text (Command)
-  | CommandParameter Int (Command) 
-  | CommandNil
+data Command  where 
+   GameCommand :: Text -> (Command) -> Command 
+   CommandParameter :: Int -> (Command ) -> Command  
+   CommandNil :: (Command )
+   Error :: (Command)
   deriving (Show,Eq,Read)
-
 
 parseCommand ::     Text -> Command 
 parseCommand s = let result = showParseResult $ parse(commandParser <* endOfInput) s `feed` pack "" in case result of 
                                                                                                          Right x -> x 
-                                                                                                         Left _ -> CommandNil
-
+                                                                                                         Left _ -> Error
 commandParser :: Parser (Command )
 commandParser = char ':' >> (gameCommand <|> commandParameter <|> pure CommandNil)
   where
@@ -24,11 +25,10 @@ commandParser = char ':' >> (gameCommand <|> commandParameter <|> pure CommandNi
     command =  (char ':' >> gameCommand) <|> commandParameter <|> pure CommandNil
 
     gameCommand :: Parser (Command )
-    gameCommand = GameCommand <$> word <* skipSpace <*> command
+    gameCommand = GameCommand <$> word <* skipSpace <*> command   
 
     commandParameter :: Parser (Command )
-    commandParameter = CommandParameter <$> decimal <* skipSpace  <*> command <|> CommandParameter <$> decimal <*> command
-
+    commandParameter = CommandParameter <$> decimal <* char ')' <* skipSpace <*> command <|> CommandParameter <$> decimal <* char ')' <*> command <|> CommandParameter <$> decimal <* skipSpace  <*> command <|> CommandParameter <$> decimal <*> command <|> CommandParameter <$  char '('  <*> decimal <* char ',' <*> command  
 
 word :: Parser Text
 word = pack <$> many1 letter
