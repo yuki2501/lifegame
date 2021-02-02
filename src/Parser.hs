@@ -25,7 +25,7 @@ commandParser = char ':' >> (gameCommand <|> commandParameter <|> pure CommandNi
     command =  (char ':' >> gameCommand) <|> commandParameter <|> pure CommandNil
 
     gameCommand :: Parser (Command )
-    gameCommand = GameCommand <$> word <* skipSpace <*> command   
+    gameCommand = GameCommand <$> word <* skipSpace <*> command <|> GameCommand <$ skipSpace <*> word <* skipSpace <*> command   
 
     commandParameter :: Parser (Command )
     commandParameter = CommandParameter <$> decimal <* char ')' <* skipSpace <*> command <|> CommandParameter <$> decimal <* char ')' <*> command <|> CommandParameter <$> decimal <* skipSpace  <*> command <|> CommandParameter <$> decimal <*> command <|> CommandParameter <$  char '('  <*> decimal <* char ',' <*> command  
