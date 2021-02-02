@@ -33,7 +33,7 @@ main =  do
 
 renderField :: GameState -> Picture
 renderField state  = (translate (fromIntegral((fieldWidth - width)*cellSize)/2) (fromIntegral((height - fieldHeight)*cellSize)/2) $ renderArray black (fromIntegral cellSize) $ field (ca  state)) 
-  <> (if (mode state == Insert) then scale 0.5 0.5 $ translate 300 (-700) (text "-- INSERT --") else mempty) 
+  <> (if (mode state == Insert) then translate 300 (-500) $ scale 0.5 0.5   (text "-- INSERT --") else mempty) 
   <> (translate 300 200  (text (show(generation $ ca state)))) 
   <> (translate 300 330 $ text "Generation")
   <> (scale 0.5 0.5 $ translate 180 (-410) (text $ reverse (command state))) <> (translate 300 90 $ text ("Rule:" ++ ruleInt2Strng (activeCellNeighbor $ rule $ca state) ++ "/" ++ruleInt2Strng (birthCellNeighbor $ rule $ ca state) ))
@@ -60,7 +60,7 @@ eventHandler (EventKey (SpecialKey s) Down _ _) state
   | s == KeyBackspace = if not (null $ command state) then (state{command = tail (command state)}) else state
   | s == KeyDelete = if not (null $ command state) then (state{command = tail (command state)}) else state
   | s == KeySpace = if not (null $ command state) then (state {command = ' ':command state}) else state
-  | s == KeyEnter =  if not (null $ command state) then runM state (bone (result(T.pack $ reverse $ command state))) else  state{command = "error"}
+  | s == KeyEnter =  if not (null $ command state) then runM state ( bone (result(T.pack $ reverse $ command state))) else  state{command = "error"}
 eventHandler _ ca = ca
 
 tickHandler :: Float -> GameState -> GameState
@@ -99,35 +99,37 @@ glider = Rp.fromListUnboxed (Rp.Z Rp.:.(3::Int) Rp.:.(3::Int)) (map char2Int " #
 lightstarship = Rp.fromListUnboxed (Rp.Z Rp.:.(4::Int)Rp.:.(5::Int)) (map char2Int " #  ##    #   ##### ")
 middlestarship = Rp.fromListUnboxed (Rp.Z Rp.:.(5::Int) Rp.:.(6::Int)) (map char2Int "   #   #   ##     #    ###### ")
 heavystarship = Rp.fromListUnboxed (Rp.Z Rp.:.(5::Int) Rp.:.(7::Int)) (map char2Int "   ##   #    ##      #     ####### ")
-
-templeteList = ["block","beehive","loaf","boat","blinker","toad","beacon","pulsar","penta","glider","lightstarship","middlestarship","heavystarship"]
-interpretCommand ::    Command  ->  InputedCommands' GameState 
+glidergun = Rp.fromListUnboxed (Rp.Z Rp.:.(9::Int) Rp.:.(36::Int)) (map char2Int "                        #                                 # #                       ##      ##            ##           #   #    ##            ####        #     #   ##              ##        #   # ##    # #                     #     #       #                      #   #                                ##                      ")
+diehard = Rp.fromListUnboxed (Rp.Z Rp.:.(3::Int) Rp.:.(8::Int)) (map char2Int "      # ##       #   ###")
+acom = Rp.fromListUnboxed (Rp.Z Rp.:.(3::Int) Rp.:.(7::Int)) (map char2Int " #        #   ##  ###")
+templeteList = ["block","beehive","loaf","boat","blinker","toad","beacon","pulsar","penta","glider","lightstarship","middlestarship","heavystarship","glidergun","diehard","acom"]
 interpretCommand  f = case f of
-                       (GameCommand command r) -> interpret command   r
+                       (GameCommand command r) -> interpret command  r
                        (CommandNil) -> Nil'
                        _ -> Error'                      
 interpret t inputedcommands
   | t == "changerule"  =  case inputedcommands of
-                            (CommandParameter i (CommandParameter i' (CommandNil))) -> ChangeRule' i i'
-                            _ -> Error'
+                            (CommandParameter i (CommandParameter i' (CommandNil))) -> (ChangeRule' i i')
+                            (CommandParameter i (CommandParameter i' (GameCommand t r))) -> ((ChangeRule' i i'))   
+                            _ ->(Error')
   | t == "cut" = case inputedcommands of
-                   (CommandParameter i (CommandParameter i' (CommandParameter i'' (CommandParameter i''' (CommandNil))))) -> if (i <= i'') && (i' <= i''') then Cut' i i' i'' i''' else Error'
+                   (CommandParameter i (CommandParameter i' (CommandParameter i'' (CommandParameter i''' (CommandNil))))) -> if (i <= i'') && (i' <= i''') then (Cut' i i' i'' i''') else Error'
                    _ -> Error'
   | t `elem` templeteList = case inputedcommands of
-                              CommandNil -> Set' t
+                              CommandNil -> (Set' t)
                               _ -> Error'
   | otherwise = Error'
 data InputedCommands' r  where
-  ChangeRule'::   Int -> Int -> InputedCommands' GameState
-  Cut'       ::  Int -> Int -> Int -> Int -> InputedCommands' GameState
-  Set'       ::  T.Text -> InputedCommands' GameState
-  Nil'       :: InputedCommands' GameState
-  Error' :: InputedCommands' GameState
+  ChangeRule'::   Int -> Int -> InputedCommands' GameState 
+  Cut'       ::  Int -> Int -> Int -> Int -> InputedCommands' GameState  
+  Set'       ::  T.Text -> InputedCommands' GameState 
+  Nil'       :: InputedCommands' GameState 
+  Error' :: InputedCommands' GameState 
 
-type M = Skeleton InputedCommands'
+type M = Skeleton InputedCommands' 
 
 
-runM :: GameState -> M a -> a
+runM :: GameState ->  M a -> a
 runM state m = case debone m of
                  ChangeRule' i i' :>>= k -> runM ( changerule state  i  i')$ k $ (changerule state  i i')
                  Cut' i i' i'' i''' :>>= k -> runM (cut state i i' i'' i''') $ k $ (cut state i i' i'' i''')
@@ -156,6 +158,9 @@ interpretSetCommand state t
   | t == "lightstarship" = state{clipBoard = lightstarship,command = ""}
   | t == "middlestarship" = state{clipBoard = middlestarship,command = ""}
   | t == "heavystarship" = state{clipBoard = heavystarship,command = ""}
+  | t == "glidergun" = state{clipBoard = glidergun,command = ""}
+  | t == "diehard" = state{clipBoard = diehard,command = ""}
+  | t == "acom" = state{clipBoard = acom, command = ""}
   | otherwise     = state{command = reverse "error"}
 
 pasteClipBoard :: GameState -> Rp.DIM2 -> GameState
