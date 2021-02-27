@@ -18,12 +18,15 @@ width = fieldWidth * 2
 height = fieldHeight
 fieldWidth = 200
 fieldHeight = 200
-cellSize = 5 
+cellSize = 5
+-- 状態を扱う型
 data GameState = GameState{ca :: Dim2CA,seed :: Int,isPosed :: Bool,mode :: Mode,clipBoard :: Field,command :: String,fps :: Int,clickedIndex :: (Int,Int)} 
+-- モードを扱う型
 data Mode = Normal | Insert deriving Eq
+
 main :: IO ()
 main =  do
-  seed <- randomIO :: IO Int
+  seed <- randomIO :: IO Int -- 乱数の生成
   let field = initfield seed
   let rule = Rule Moore [3] [2,3]
   let lifegame = Dim2CA field rule True 1  
@@ -40,7 +43,7 @@ renderField state  = (translate (fromIntegral((fieldWidth - width)*cellSize)/2) 
   <> (translate 300  (-100) $scale 0.5 0.5 $ text ("Active Cell:" ++ show(runST $ Rp.sumAllP (field $ ca state))))
   <> (translate 300 (-150) $ scale 0.5 0.5 $ text ("Clicked Cell" ++ show(clickedIndex state)))
                                                                                                                                                                                                                                    where
-                                                                                                                                                                                                                                     ruleInt2Strng :: [Int] -> String
+                                                                                                                                                                                                                                     ruleInt2Strng :: [Int] -> String 
                                                                                                                                                                                                                                      ruleInt2Strng [] = []
                                                                                                                                                                                                                                      ruleInt2Strng (x:xs) = show x ++ ruleInt2Strng xs 
 
@@ -52,9 +55,9 @@ eventHandler (EventKey (Char c) Down _ _ ) state
   | c == 'r' = if null $ command state then state{ca = (ca state){field = initfield (seed state + 100),generation = 1}} else  state{command = 'r':(command state)}
   | c == 'p' = if null $ command state then state{isPosed = not(isPosed state)} else state{command = 'p':(command state)}
   | c == 'n' = if null $ command state then state{ca = fieldContentUpdate (ca state)} else state {command = 'n':(command state)}
-  | c == 'i' = if mode state == Normal && (null $  command state) then state{mode = Insert} else if not (null $  command state) then state{command = 'i':(command state) }else state{mode = Normal}
-  | c == 'd' = if mode state == Insert && (null $  command state) then state{ca = ((ca state){generation = 1,field = runST $ Rp.computeUnboxedP $ Rp.fromFunction (Rp.Z Rp.:.fieldHeight Rp.:.fieldWidth)  (const 0)})} else if not (null $  command state) then state{command = 'd':command state } else state
-  | c == ':' = if command state == reverse "error" then state{command = ':':[]} else state{command = ':':(command state)}
+  | c == 'i' = if mode state == Normal && null (command state) then state{mode = Insert} else if not (null $  command state) then state{command = 'i':(command state) }else state{mode = Normal}
+  | c == 'd' = if mode state == Insert && null (command state) then state{ca = ((ca state){generation = 1,field = runST $ Rp.computeUnboxedP $ Rp.fromFunction (Rp.Z Rp.:.fieldHeight Rp.:.fieldWidth)  (const 0)})} else if not (null $  command state) then state{command = 'd':command state } else state
+  | c == ':' = if command state == reverse "error" then state{command = [':']} else state{command = ':':command state}
   | otherwise = if not (null $ command state) then (state{command = c:(command state)}) else state
 eventHandler (EventKey (SpecialKey s) Down _ _) state
   | s == KeyBackspace = if not (null $ command state) then (state{command = tail (command state)}) else state
@@ -71,6 +74,7 @@ initfield i =  (randomishIntArray (Rp.Z Rp.:.fieldHeight Rp.:.fieldWidth) 0 1 i)
 
 char2Int :: Char -> Int
 char2Int c = if c == '#' then 1 else 0
+                                                                                                                                                                                                                                     
 
 clickedIndex2ArrayIndex :: Float -> Float -> Rp.DIM2
 clickedIndex2ArrayIndex mx my = tuple2Index (safeAccess  (((abs(mx + int2Float((width*cellSize)`div`2))/(int2Float cellSize)))) fieldWidth,safeAccess (((abs(my - int2Float((height*cellSize)`div`2))/(int2Float cellSize)))) fieldHeight)
